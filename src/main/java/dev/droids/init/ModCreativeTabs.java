@@ -19,6 +19,7 @@ public class ModCreativeTabs {
                     .displayItems((parameters, output) -> {
                         output.accept(ModItems.FARMER_DROID.get());
                         output.accept(ModItems.DROID_WRENCH.get());
+                        output.accept(ModItems.RANGE_UPGRADE.get());
                     })
                     .build());
 }

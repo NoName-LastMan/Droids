@@ -4,6 +4,7 @@ import dev.droids.entity.FarmerDroidEntity;
 import dev.droids.init.ModCreativeTabs;
 import dev.droids.init.ModEntities;
 import dev.droids.init.ModItems;
+import dev.droids.init.ModMenuTypes;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
@@ -22,6 +23,7 @@ public class DroidsMod {
         ModItems.ITEMS.register(modEventBus);
         ModEntities.ENTITIES.register(modEventBus);
         ModCreativeTabs.CREATIVE_MODE_TABS.register(modEventBus);
+        ModMenuTypes.MENUS.register(modEventBus);
 
         // Register event listeners
         modEventBus.addListener(this::registerAttributes);

@@ -3,6 +3,7 @@ package dev.droids.init;
 import dev.droids.DroidsMod;
 import dev.droids.item.DroidWrenchItem;
 import dev.droids.item.FarmerDroidItem;
+import dev.droids.item.RangeUpgradeItem;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.Item;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -17,4 +18,7 @@ public class ModItems {
 
     public static final DeferredHolder<Item, DroidWrenchItem> DROID_WRENCH =
             ITEMS.register("droid_wrench", () -> new DroidWrenchItem(new Item.Properties().stacksTo(1)));
+
+    public static final DeferredHolder<Item, RangeUpgradeItem> RANGE_UPGRADE =
+            ITEMS.register("range_upgrade", () -> new RangeUpgradeItem(new Item.Properties().stacksTo(4)));
 }

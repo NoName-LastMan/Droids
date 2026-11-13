@@ -6,7 +6,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.ai.goal.MoveToBlockGoal;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.LevelReader;
@@ -18,8 +17,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import java.util.List;
 
 /**
- * AI Goal for Farmer Droid: searches for mature crops on farmland, harvests them,
- * replants matching seeds, and stores products in the droid's internal inventory.
+ * AI Goal for Farmer Droid: searches for mature crops strictly within its designated bounding box,
+ * harvests them, replants matching seeds, and stores products in the droid's internal inventory.
  */
 public class FarmerHarvestGoal extends MoveToBlockGoal {
 
@@ -27,7 +26,7 @@ public class FarmerHarvestGoal extends MoveToBlockGoal {
     private int workTicks = 0;
 
     public FarmerHarvestGoal(FarmerDroidEntity droid, double speedModifier, int searchRange) {
-        super(droid, speedModifier, searchRange, 2);
+        super(droid, speedModifier, searchRange, 3);
         this.droid = droid;
     }
 
@@ -46,6 +45,14 @@ public class FarmerHarvestGoal extends MoveToBlockGoal {
 
     @Override
     protected boolean isValidTarget(LevelReader level, BlockPos pos) {
+        // Enforce strict work area boundaries if set
+        if (this.droid.hasWorkArea()) {
+            if (pos.getX() < this.droid.getAreaMinX() || pos.getX() > this.droid.getAreaMaxX()
+                    || pos.getZ() < this.droid.getAreaMinZ() || pos.getZ() > this.droid.getAreaMaxZ()) {
+                return false;
+            }
+        }
+
         BlockState state = level.getBlockState(pos);
         if (state.is(Blocks.FARMLAND)) {
             BlockPos cropPos = pos.above();
@@ -73,7 +80,7 @@ public class FarmerHarvestGoal extends MoveToBlockGoal {
             this.workTicks++;
             this.droid.setWorking(true);
 
-            if (this.workTicks >= 20) { // ~1 second to harvest
+            if (this.workTicks >= 16) { // ~0.8 second mechanical action
                 harvestCrop();
                 this.workTicks = 0;
                 this.droid.setWorking(false);
@@ -102,7 +109,6 @@ public class FarmerHarvestGoal extends MoveToBlockGoal {
             for (ItemStack drop : drops) {
                 ItemStack remaining = this.droid.getInventory().addItem(drop);
                 if (!remaining.isEmpty()) {
-                    // If inventory full, drop on ground
                     Block.popResource(serverLevel, cropPos, remaining);
                 }
             }

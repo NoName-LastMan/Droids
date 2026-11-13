@@ -90,6 +90,11 @@ public class FarmerDroidModel extends HierarchicalModel<FarmerDroidEntity> {
     public void setupAnim(FarmerDroidEntity entity, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch) {
         this.root().getAllParts().forEach(ModelPart::resetPose);
 
+        // When unpowered, stay completely frozen/stiff like a shutdown machine
+        if (!entity.hasFuel()) {
+            return;
+        }
+
         this.head.yRot = netHeadYaw * ((float) Math.PI / 180F);
         this.head.xRot = headPitch * ((float) Math.PI / 180F);
 
