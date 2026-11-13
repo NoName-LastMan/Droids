@@ -2,6 +2,7 @@ package dev.droids.init;
 
 import dev.droids.DroidsMod;
 import dev.droids.entity.FarmerDroidEntity;
+import dev.droids.entity.MinerDroidEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
@@ -18,4 +19,11 @@ public class ModEntities {
                             .sized(0.7F, 1.2F)
                             .clientTrackingRange(10)
                             .build("farmer_droid"));
+
+    public static final DeferredHolder<EntityType<?>, EntityType<MinerDroidEntity>> MINER_DROID =
+            ENTITIES.register("miner_droid", () ->
+                    EntityType.Builder.of(MinerDroidEntity::new, MobCategory.MISC)
+                            .sized(0.8F, 1.3F)
+                            .clientTrackingRange(10)
+                            .build("miner_droid"));
 }

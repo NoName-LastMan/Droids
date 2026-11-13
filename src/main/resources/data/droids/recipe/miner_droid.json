@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " P ",
+    "IRI",
+    " C "
+  ],
+  "key": {
+    "P": {
+      "item": "minecraft:iron_pickaxe"
+    },
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "R": {
+      "item": "minecraft:copper_block"
+    },
+    "C": {
+      "item": "minecraft:clock"
+    }
+  ],
+  "result": {
+    "id": "droids:miner_droid",
+    "count": 1
+  }
+}

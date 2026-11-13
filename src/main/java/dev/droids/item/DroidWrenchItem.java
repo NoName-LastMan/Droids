@@ -178,6 +178,56 @@ public class DroidWrenchItem extends Item {
                 }
             }
             return InteractionResult.sidedSuccess(level.isClientSide);
+        } else if (interactionTarget instanceof dev.droids.entity.MinerDroidEntity miner) {
+            Level level = player.level();
+            if (!level.isClientSide) {
+                CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+                if (customData == null) {
+                    player.displayClientMessage(Component.translatable("message.droids.wrench.empty"), true);
+                    return InteractionResult.SUCCESS;
+                }
+
+                if (customData.contains("ChestX")) {
+                    int cx = customData.copyTag().getInt("ChestX");
+                    int cy = customData.copyTag().getInt("ChestY");
+                    int cz = customData.copyTag().getInt("ChestZ");
+                    miner.setLinkedChest(new BlockPos(cx, cy, cz));
+                }
+
+                if (customData.contains("Corner1X") && customData.contains("Corner2X")) {
+                    int c1x = customData.copyTag().getInt("Corner1X");
+                    int c1z = customData.copyTag().getInt("Corner1Z");
+                    int c2x = customData.copyTag().getInt("Corner2X");
+                    int c2z = customData.copyTag().getInt("Corner2Z");
+
+                    int width = Math.abs(c2x - c1x) + 1;
+                    int length = Math.abs(c2z - c1z) + 1;
+                    int maxAllowed = miner.getMaxAllowedQuarryDimension();
+
+                    if (width > maxAllowed || length > maxAllowed) {
+                        player.displayClientMessage(
+                                Component.translatable("message.droids.wrench.area_too_large", width, length, maxAllowed, maxAllowed),
+                                false
+                        );
+                        return InteractionResult.SUCCESS;
+                    }
+
+                    miner.setWorkArea(
+                            Math.min(c1x, c2x),
+                            Math.min(c1z, c2z),
+                            Math.max(c1x, c2x),
+                            Math.max(c1z, c2z)
+                    );
+
+                    player.displayClientMessage(
+                            Component.translatable("message.droids.wrench.configured", width, length),
+                            true
+                    );
+                } else {
+                    player.displayClientMessage(Component.translatable("message.droids.wrench.chest_only_configured"), true);
+                }
+            }
+            return InteractionResult.sidedSuccess(level.isClientSide);
         }
         return super.interactLivingEntity(stack, player, interactionTarget, usedHand);
     }

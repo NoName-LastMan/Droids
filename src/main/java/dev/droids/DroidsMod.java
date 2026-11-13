@@ -1,6 +1,7 @@
 package dev.droids;
 
 import dev.droids.entity.FarmerDroidEntity;
+import dev.droids.entity.MinerDroidEntity;
 import dev.droids.init.ModCreativeTabs;
 import dev.droids.init.ModEntities;
 import dev.droids.init.ModItems;
@@ -31,5 +32,6 @@ public class DroidsMod {
 
     private void registerAttributes(EntityAttributeCreationEvent event) {
         event.put(ModEntities.FARMER_DROID.get(), FarmerDroidEntity.createAttributes().build());
+        event.put(ModEntities.MINER_DROID.get(), MinerDroidEntity.createAttributes().build());
     }
 }

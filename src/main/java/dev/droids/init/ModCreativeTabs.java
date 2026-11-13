@@ -18,6 +18,7 @@ public class ModCreativeTabs {
                     .icon(() -> new ItemStack(ModItems.FARMER_DROID.get()))
                     .displayItems((parameters, output) -> {
                         output.accept(ModItems.FARMER_DROID.get());
+                        output.accept(ModItems.MINER_DROID.get());
                         output.accept(ModItems.DROID_WRENCH.get());
                         output.accept(ModItems.RANGE_UPGRADE.get());
                     })

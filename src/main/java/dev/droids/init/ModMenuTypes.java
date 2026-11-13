@@ -2,6 +2,7 @@ package dev.droids.init;
 
 import dev.droids.DroidsMod;
 import dev.droids.menu.FarmerDroidMenu;
+import dev.droids.menu.MinerDroidMenu;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.inventory.MenuType;
 import net.neoforged.neoforge.common.extensions.IMenuTypeExtension;
@@ -14,4 +15,7 @@ public class ModMenuTypes {
 
     public static final DeferredHolder<MenuType<?>, MenuType<FarmerDroidMenu>> FARMER_DROID_MENU =
             MENUS.register("farmer_droid", () -> IMenuTypeExtension.create(FarmerDroidMenu::new));
+
+    public static final DeferredHolder<MenuType<?>, MenuType<MinerDroidMenu>> MINER_DROID_MENU =
+            MENUS.register("miner_droid", () -> IMenuTypeExtension.create(MinerDroidMenu::new));
 }
