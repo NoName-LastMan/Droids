@@ -1,8 +1,6 @@
 package dev.droids.entity;
 
-import dev.droids.entity.ai.FarmerDepositGoal;
-import dev.droids.entity.ai.FarmerHarvestGoal;
-import dev.droids.entity.ai.MechanicalStandbyGoal;
+import dev.droids.entity.ai.FarmerBatchRoutineGoal;
 import dev.droids.init.ModItems;
 import dev.droids.menu.FarmerDroidMenu;
 import net.minecraft.core.BlockPos;
@@ -14,7 +12,6 @@ import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleContainer;
@@ -38,12 +35,15 @@ import java.util.Optional;
 
 /**
  * Autonomous Clockwork Farmer Droid.
- * Strictly mechanical behavior: stays completely still when unpowered,
- * works strictly within configured coordinate boundaries, and manages internal storage.
+ * Operates on a scheduled batch routine: scans field on 10s intervals,
+ * chain-harvests all mature crops without pauses, unloads to storage,
+ * and docks at its home position in motionless standby.
  */
 public class FarmerDroidEntity extends PathfinderMob {
 
     private static final EntityDataAccessor<Optional<BlockPos>> LINKED_CHEST =
+            SynchedEntityData.defineId(FarmerDroidEntity.class, EntityDataSerializers.OPTIONAL_BLOCK_POS);
+    private static final EntityDataAccessor<Optional<BlockPos>> HOME_POS =
             SynchedEntityData.defineId(FarmerDroidEntity.class, EntityDataSerializers.OPTIONAL_BLOCK_POS);
     private static final EntityDataAccessor<Integer> FUEL_TICKS =
             SynchedEntityData.defineId(FarmerDroidEntity.class, EntityDataSerializers.INT);
@@ -73,7 +73,7 @@ public class FarmerDroidEntity extends PathfinderMob {
     public static AttributeSupplier.Builder createAttributes() {
         return PathfinderMob.createMobAttributes()
                 .add(Attributes.MAX_HEALTH, 30.0D)
-                .add(Attributes.MOVEMENT_SPEED, 0.22D)
+                .add(Attributes.MOVEMENT_SPEED, 0.25D)
                 .add(Attributes.ARMOR, 6.0D)
                 .add(Attributes.FOLLOW_RANGE, 32.0D);
     }
@@ -81,16 +81,15 @@ public class FarmerDroidEntity extends PathfinderMob {
     @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new FloatGoal(this));
-        // Strict mechanical goals only (no random stroll, no creature looking)
-        this.goalSelector.addGoal(1, new FarmerDepositGoal(this, 1.0D));
-        this.goalSelector.addGoal(2, new FarmerHarvestGoal(this, 0.9D, 24));
-        this.goalSelector.addGoal(3, new MechanicalStandbyGoal(this, 0.7D));
+        // High-performance batch routine goal (replaces vanilla sluggish step-by-step goal)
+        this.goalSelector.addGoal(1, new FarmerBatchRoutineGoal(this, 1.0D));
     }
 
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         super.defineSynchedData(builder);
         builder.define(LINKED_CHEST, Optional.empty());
+        builder.define(HOME_POS, Optional.empty());
         builder.define(FUEL_TICKS, 0);
         builder.define(IS_WORKING, false);
         builder.define(HAS_WORK_AREA, false);
@@ -98,6 +97,15 @@ public class FarmerDroidEntity extends PathfinderMob {
         builder.define(AREA_MIN_Z, 0);
         builder.define(AREA_MAX_X, 0);
         builder.define(AREA_MAX_Z, 0);
+    }
+
+    // Home Dock position
+    public BlockPos getHomePosition() {
+        return this.entityData.get(HOME_POS).orElseGet(this::blockPosition);
+    }
+
+    public void setHomePosition(@Nullable BlockPos pos) {
+        this.entityData.set(HOME_POS, Optional.ofNullable(pos));
     }
 
     // Work Area methods
@@ -127,17 +135,32 @@ public class FarmerDroidEntity extends PathfinderMob {
         this.entityData.set(AREA_MAX_X, maxX);
         this.entityData.set(AREA_MAX_Z, maxZ);
         this.entityData.set(HAS_WORK_AREA, true);
+        // Set home dock position at the center of the configured work area
+        setHomePosition(new BlockPos((minX + maxX) / 2, this.getBlockY(), (minZ + maxZ) / 2));
     }
 
-    public BlockPos getWorkAreaCenter() {
-        if (hasWorkArea()) {
-            return new BlockPos(
-                    (getAreaMinX() + getAreaMaxX()) / 2,
-                    this.getBlockY(),
-                    (getAreaMinZ() + getAreaMaxZ()) / 2
-            );
-        }
-        return this.blockPosition();
+    public int getEffectiveMinX() {
+        if (hasWorkArea()) return getAreaMinX();
+        int r = getMaxAllowedAreaDimension() / 2;
+        return getHomePosition().getX() - r;
+    }
+
+    public int getEffectiveMaxX() {
+        if (hasWorkArea()) return getAreaMaxX();
+        int r = getMaxAllowedAreaDimension() / 2;
+        return getHomePosition().getX() + r;
+    }
+
+    public int getEffectiveMinZ() {
+        if (hasWorkArea()) return getAreaMinZ();
+        int r = getMaxAllowedAreaDimension() / 2;
+        return getHomePosition().getZ() - r;
+    }
+
+    public int getEffectiveMaxZ() {
+        if (hasWorkArea()) return getAreaMaxZ();
+        int r = getMaxAllowedAreaDimension() / 2;
+        return getHomePosition().getZ() + r;
     }
 
     public int getRangeUpgradesCount() {
@@ -204,12 +227,10 @@ public class FarmerDroidEntity extends PathfinderMob {
     public InteractionResult mobInteract(Player player, InteractionHand hand) {
         ItemStack held = player.getItemInHand(hand);
 
-        // If player holds the wrench, allow wrench logic to take precedence
         if (held.is(ModItems.DROID_WRENCH.get())) {
             return super.mobInteract(player, hand);
         }
 
-        // Otherwise open Droid Terminal GUI
         if (!this.level().isClientSide && player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
             serverPlayer.openMenu(
                     new SimpleMenuProvider(
@@ -261,7 +282,6 @@ public class FarmerDroidEntity extends PathfinderMob {
         super.tick();
 
         if (this.level().isClientSide) {
-            // Steam puffs from chimney only if powered and active
             if (hasFuel() && this.random.nextFloat() < 0.12F) {
                 this.level().addParticle(
                         ParticleTypes.SMOKE,
@@ -272,17 +292,14 @@ public class FarmerDroidEntity extends PathfinderMob {
                 );
             }
         } else {
-            // Auto-consume from Fuel Slot if tank is low
             if (getFuelTicks() <= 40) {
                 tryConsumeFuelFromSlot();
             }
 
-            // Consume fuel
             int currentFuel = getFuelTicks();
             if (currentFuel > 0) {
                 setFuelTicks(currentFuel - 1);
             } else {
-                // UNPOWERED: Freeze all movement and navigation
                 this.getNavigation().stop();
                 this.setDeltaMovement(Vec3.ZERO);
             }
@@ -316,6 +333,13 @@ public class FarmerDroidEntity extends PathfinderMob {
             compound.putInt("ChestY", pos.getY());
             compound.putInt("ChestZ", pos.getZ());
         });
+        getHomePosition();
+        this.entityData.get(HOME_POS).ifPresent(pos -> {
+            compound.putInt("HomeX", pos.getX());
+            compound.putInt("HomeY", pos.getY());
+            compound.putInt("HomeZ", pos.getZ());
+        });
+
         compound.putInt("FuelTicks", getFuelTicks());
 
         if (hasWorkArea()) {
@@ -337,6 +361,10 @@ public class FarmerDroidEntity extends PathfinderMob {
         if (compound.contains("ChestX") && compound.contains("ChestY") && compound.contains("ChestZ")) {
             setLinkedChest(new BlockPos(compound.getInt("ChestX"), compound.getInt("ChestY"), compound.getInt("ChestZ")));
         }
+        if (compound.contains("HomeX") && compound.contains("HomeY") && compound.contains("HomeZ")) {
+            setHomePosition(new BlockPos(compound.getInt("HomeX"), compound.getInt("HomeY"), compound.getInt("HomeZ")));
+        }
+
         setFuelTicks(compound.getInt("FuelTicks"));
 
         if (compound.getBoolean("HasWorkArea")) {
