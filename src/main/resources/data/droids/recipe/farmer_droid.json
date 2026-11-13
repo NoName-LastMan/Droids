@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " C ",
+    "IRI",
+    " T "
+  ],
+  "key": {
+    "C": {
+      "item": "minecraft:clock"
+    },
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "R": {
+      "item": "minecraft:copper_block"
+    },
+    "T": {
+      "item": "minecraft:redstone"
+    }
+  ],
+  "result": {
+    "id": "droids:farmer_droid",
+    "count": 1
+  }
+}

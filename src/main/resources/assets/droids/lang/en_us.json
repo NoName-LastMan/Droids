@@ -1,0 +1,13 @@
+{
+  "itemGroup.droids": "Droids",
+  "item.droids.farmer_droid": "Farmer Droid",
+  "item.droids.droid_wrench": "Droid Wrench",
+  "entity.droids.farmer_droid": "Farmer Droid",
+  "message.droids.wrench.pos_recorded": "Recorded storage target at [%d, %d, %d]",
+  "message.droids.wrench.linked": "Linked Droid to storage at [%d, %d, %d]",
+  "message.droids.wrench.no_target": "No storage target recorded! Right-click a chest first.",
+  "message.droids.refueled": "Refueled Droid! (%ds remaining)",
+  "message.droids.status": "Farmer Droid | Fuel: %ds remaining | Linked Storage: %s",
+  "tooltip.droids.wrench.target": "Recorded Target: [%d, %d, %d]",
+  "tooltip.droids.wrench.howto": "Right-click a chest/barrel to record target, then right-click a Droid to link."
+}
