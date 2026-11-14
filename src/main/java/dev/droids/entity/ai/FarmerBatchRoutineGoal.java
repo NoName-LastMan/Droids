@@ -6,7 +6,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Container;
-import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -21,14 +20,12 @@ import java.util.*;
 
 /**
  * High-performance Automated Guided Batch Routine for Farmer Droid.
- * 
- * Replaces vanilla sluggish step-by-step scanning:
  * 1. IDLE: Rests motionless at Home dock. Scans entire field on a 10s timer.
  * 2. HARVESTING: Compiles all mature crops into an optimized route, chain-harvesting without pauses.
  * 3. DEPOSITING: Walks directly to linked chest and unloads all harvested produce.
  * 4. RETURNING: Returns to Home dock and enters motionless standby until the next scheduled cycle.
  */
-public class FarmerBatchRoutineGoal extends Goal {
+public class FarmerBatchRoutineGoal extends AbstractDroidGoal<FarmerDroidEntity> {
 
     public enum RoutineState {
         IDLE,
@@ -37,10 +34,7 @@ public class FarmerBatchRoutineGoal extends Goal {
         RETURNING
     }
 
-    private final FarmerDroidEntity droid;
-    private final double speedModifier;
     private RoutineState state = RoutineState.IDLE;
-
     private final Deque<BlockPos> harvestQueue = new ArrayDeque<>();
     private BlockPos currentCropTarget = null;
 
@@ -49,19 +43,7 @@ public class FarmerBatchRoutineGoal extends Goal {
     private int repathTimer = 0;
 
     public FarmerBatchRoutineGoal(FarmerDroidEntity droid, double speedModifier) {
-        this.droid = droid;
-        this.speedModifier = speedModifier;
-        this.setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
-    }
-
-    @Override
-    public boolean canUse() {
-        return this.droid.hasFuel();
-    }
-
-    @Override
-    public boolean canContinueToUse() {
-        return this.droid.hasFuel();
+        super(droid, speedModifier);
     }
 
     @Override
@@ -121,7 +103,6 @@ public class FarmerBatchRoutineGoal extends Goal {
 
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
-                // Check farmland and crop above within +-2 vertical range
                 for (int y = currentY - 2; y <= currentY + 2; y++) {
                     BlockPos farmPos = new BlockPos(x, y, z);
                     BlockState farmState = level.getBlockState(farmPos);
@@ -144,7 +125,7 @@ public class FarmerBatchRoutineGoal extends Goal {
 
         if (found.isEmpty()) return;
 
-        // Sort found targets with Nearest-Neighbor path heuristic for optimal fluid travel
+        // Sort found targets with Nearest-Neighbor path heuristic
         BlockPos currentPos = this.droid.blockPosition();
         while (!found.isEmpty()) {
             BlockPos nearest = null;
@@ -189,17 +170,15 @@ public class FarmerBatchRoutineGoal extends Goal {
                 this.currentCropTarget.getZ() + 0.5D
         );
 
-        if (distSq <= 4.0D) { // Reached crop
+        if (distSq <= 4.0D) {
             this.actionTicks++;
             this.droid.setWorking(true);
 
-            // Fast, crisp mechanical action (only 6 ticks = 0.3s)
             if (this.actionTicks >= 6) {
                 harvestAt(this.currentCropTarget);
                 this.actionTicks = 0;
                 this.droid.setWorking(false);
 
-                // Instantly advance to next crop in queue (Zero delay!)
                 if (!this.harvestQueue.isEmpty()) {
                     this.currentCropTarget = this.harvestQueue.poll();
                     this.droid.getNavigation().moveTo(
@@ -214,7 +193,6 @@ public class FarmerBatchRoutineGoal extends Goal {
                 }
             }
         } else {
-            // Repath periodically if path is done
             if (++this.repathTimer >= 20 || this.droid.getNavigation().isDone()) {
                 this.repathTimer = 0;
                 this.droid.getNavigation().moveTo(
@@ -324,35 +302,12 @@ public class FarmerBatchRoutineGoal extends Goal {
         }
     }
 
-    private ItemStack insertIntoContainer(Container container, ItemStack stack) {
-        for (int i = 0; i < container.getContainerSize(); i++) {
-            ItemStack inSlot = container.getItem(i);
-            if (ItemStack.isSameItemSameComponents(inSlot, stack)) {
-                int space = inSlot.getMaxStackSize() - inSlot.getCount();
-                int toAdd = Math.min(space, stack.getCount());
-                if (toAdd > 0) {
-                    inSlot.grow(toAdd);
-                    stack.shrink(toAdd);
-                    if (stack.isEmpty()) return ItemStack.EMPTY;
-                }
-            }
-        }
-        for (int i = 0; i < container.getContainerSize(); i++) {
-            if (container.getItem(i).isEmpty()) {
-                container.setItem(i, stack.copy());
-                return ItemStack.EMPTY;
-            }
-        }
-        return stack;
-    }
-
     // 4. RETURNING: Return to Home dock and enter standby
     private void tickReturning() {
         BlockPos homePos = this.droid.getHomePosition();
         double distSq = this.droid.distanceToSqr(homePos.getX() + 0.5D, homePos.getY(), homePos.getZ() + 0.5D);
 
         if (distSq <= 3.0D) {
-            // Arrived home! Freeze navigation and enter standby
             this.droid.getNavigation().stop();
             this.state = RoutineState.IDLE;
             this.scanTimer = 0;

@@ -132,20 +132,13 @@ public class DroidControllerItem extends Item {
     public InteractionResult interactLivingEntity(ItemStack stack, Player player, LivingEntity target, InteractionHand hand) {
         Level level = player.level();
 
-        BlockPos home = null;
-        if (target instanceof MinerDroidEntity miner) {
-            home = miner.getHomePosition();
-        } else if (target instanceof FarmerDroidEntity farmer) {
-            home = farmer.getHomePosition();
-        }
-
-        if (home != null) {
+        if (target instanceof dev.droids.entity.AbstractDroidEntity droid) {
+            BlockPos home = droid.getHomePosition();
             if (!level.isClientSide) {
-                final BlockPos finalHome = home;
                 CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
-                    tag.putInt("StationX", finalHome.getX());
-                    tag.putInt("StationY", finalHome.getY());
-                    tag.putInt("StationZ", finalHome.getZ());
+                    tag.putInt("StationX", home.getX());
+                    tag.putInt("StationY", home.getY());
+                    tag.putInt("StationZ", home.getZ());
                 });
                 level.playSound(null, target.blockPosition(), SoundEvents.NOTE_BLOCK_CHIME.value(), SoundSource.PLAYERS, 1.0F, 1.4F);
                 player.displayClientMessage(
@@ -269,8 +262,8 @@ public class DroidControllerItem extends Item {
 
         var droidEntity = station.getAssignedDroid(serverLevel);
 
-        if (droidEntity instanceof MinerDroidEntity miner) {
-            int max = miner.getMaxAllowedQuarryDimension();
+        if (droidEntity instanceof dev.droids.entity.AbstractDroidEntity droid) {
+            int max = droid.getMaxAllowedAreaDimension();
             int w = maxX - minX + 1;
             int l = maxZ - minZ + 1;
             if (w > max || l > max) {
@@ -280,25 +273,9 @@ public class DroidControllerItem extends Item {
                 );
                 return false;
             }
-            miner.setWorkArea(minX, minZ, maxX, maxZ);
+            droid.setWorkArea(minX, minZ, maxX, maxZ);
             player.displayClientMessage(
-                    Component.literal("§a[Controller] Area " + w + "×" + l + " applied to Miner Droid!"),
-                    true
-            );
-        } else if (droidEntity instanceof FarmerDroidEntity farmer) {
-            int max = farmer.getMaxAllowedAreaDimension();
-            int w = maxX - minX + 1;
-            int l = maxZ - minZ + 1;
-            if (w > max || l > max) {
-                player.displayClientMessage(
-                        Component.literal("§c[Controller] Area " + w + "×" + l + " exceeds limit (" + max + "×" + max + "). Add Range Upgrades."),
-                        false
-                );
-                return false;
-            }
-            farmer.setWorkArea(minX, minZ, maxX, maxZ);
-            player.displayClientMessage(
-                    Component.literal("§a[Controller] Area " + w + "×" + l + " applied to Farmer Droid!"),
+                    Component.literal("§a[Controller] Area " + w + "×" + l + " applied to " + droid.getDroidTypeName().getString() + "!"),
                     true
             );
         } else {

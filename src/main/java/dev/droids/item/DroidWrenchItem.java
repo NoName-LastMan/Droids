@@ -2,10 +2,8 @@ package dev.droids.item;
 
 import dev.droids.block.DroidStationBlock;
 import dev.droids.block.entity.DroidStationBlockEntity;
-import dev.droids.entity.FarmerDroidEntity;
-import dev.droids.entity.MinerDroidEntity;
+import dev.droids.entity.AbstractDroidEntity;
 import dev.droids.init.ModBlocks;
-import dev.droids.init.ModItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
@@ -14,7 +12,6 @@ import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -38,63 +35,9 @@ public class DroidWrenchItem extends Item {
 
     @Override
     public InteractionResult interactLivingEntity(ItemStack stack, Player player, LivingEntity target, InteractionHand hand) {
-        Level level = player.level();
-
-        // 1. Dismantle Farmer Droid
-        if (target instanceof FarmerDroidEntity farmer) {
-            if (!level.isClientSide) {
-                // Drop all contents
-                Containers.dropContents(level, farmer.blockPosition(), farmer.getInventory());
-                Containers.dropContents(level, farmer.blockPosition(), farmer.getFuelInventory());
-                Containers.dropContents(level, farmer.blockPosition(), farmer.getUpgradeInventory());
-
-                // Reset station occupied state if home was a station
-                BlockPos homePos = farmer.getHomePosition();
-                BlockState homeState = level.getBlockState(homePos);
-                if (homeState.is(ModBlocks.DROID_STATION.get())) {
-                    level.setBlock(homePos, homeState.setValue(DroidStationBlock.OCCUPIED, false), 3);
-                }
-
-                // Drop Droid Item
-                ItemStack droidItem = new ItemStack(ModItems.FARMER_DROID.get());
-                ItemEntity itemEntity = new ItemEntity(level, farmer.getX(), farmer.getY() + 0.5D, farmer.getZ(), droidItem);
-                level.addFreshEntity(itemEntity);
-
-                level.playSound(null, farmer.blockPosition(), SoundEvents.ANVIL_USE, SoundSource.PLAYERS, 0.9F, 1.3F);
-                player.displayClientMessage(Component.translatable("message.droids.wrench.retrieved_farmer"), true);
-                farmer.discard();
-            }
-            return InteractionResult.sidedSuccess(level.isClientSide);
+        if (target instanceof AbstractDroidEntity droid) {
+            return droid.dismantle(player);
         }
-
-        // 2. Dismantle Miner Droid
-        if (target instanceof MinerDroidEntity miner) {
-            if (!level.isClientSide) {
-                // Drop all contents
-                Containers.dropContents(level, miner.blockPosition(), miner.getInventory());
-                Containers.dropContents(level, miner.blockPosition(), miner.getFuelInventory());
-                Containers.dropContents(level, miner.blockPosition(), miner.getPickaxeInventory());
-                Containers.dropContents(level, miner.blockPosition(), miner.getUpgradeInventory());
-
-                // Reset station occupied state if home was a station
-                BlockPos homePos = miner.getHomePosition();
-                BlockState homeState = level.getBlockState(homePos);
-                if (homeState.is(ModBlocks.DROID_STATION.get())) {
-                    level.setBlock(homePos, homeState.setValue(DroidStationBlock.OCCUPIED, false), 3);
-                }
-
-                // Drop Droid Item
-                ItemStack droidItem = new ItemStack(ModItems.MINER_DROID.get());
-                ItemEntity itemEntity = new ItemEntity(level, miner.getX(), miner.getY() + 0.5D, miner.getZ(), droidItem);
-                level.addFreshEntity(itemEntity);
-
-                level.playSound(null, miner.blockPosition(), SoundEvents.ANVIL_USE, SoundSource.PLAYERS, 0.9F, 1.3F);
-                player.displayClientMessage(Component.translatable("message.droids.wrench.retrieved_miner"), true);
-                miner.discard();
-            }
-            return InteractionResult.sidedSuccess(level.isClientSide);
-        }
-
         return super.interactLivingEntity(stack, player, target, hand);
     }
 

@@ -68,18 +68,18 @@ public class DroidStationBlockEntity extends BaseContainerBlockEntity implements
         // Find assigned Droid if present
         Entity droidEntity = getAssignedDroid(level);
 
-        if (droidEntity instanceof MinerDroidEntity miner) {
+        if (droidEntity instanceof dev.droids.entity.AbstractDroidEntity droid) {
             // Check if Droid is docked on top of station (dist <= 1.5 blocks)
-            double distSq = miner.distanceToSqr(this.worldPosition.getX() + 0.5D, this.worldPosition.getY() + 1.0D, this.worldPosition.getZ() + 0.5D);
+            double distSq = droid.distanceToSqr(this.worldPosition.getX() + 0.5D, this.worldPosition.getY() + 1.0D, this.worldPosition.getZ() + 0.5D);
             if (distSq <= 2.5D) {
-                // 1. Refuel Droid from Station's Fuel Slot
-                if (miner.getFuelTicks() < 3000) {
+                // 1. Common Refuel from Station's Fuel Slot
+                if (droid.getFuelTicks() < 3000) {
                     ItemStack fuelStack = this.items.get(SLOT_FUEL);
                     if (!fuelStack.isEmpty()) {
                         int burnTime = fuelStack.getBurnTime(RecipeType.SMELTING);
                         if (burnTime <= 0 && (fuelStack.is(Items.COAL) || fuelStack.is(Items.CHARCOAL))) burnTime = 1600;
                         if (burnTime > 0) {
-                            miner.setFuelTicks(miner.getFuelTicks() + burnTime);
+                            droid.setFuelTicks(droid.getFuelTicks() + burnTime);
                             fuelStack.shrink(1);
                             level.playSound(null, this.worldPosition, SoundEvents.FURNACE_FIRE_CRACKLE, SoundSource.BLOCKS, 0.8F, 1.2F);
                             setChanged();
@@ -87,67 +87,35 @@ public class DroidStationBlockEntity extends BaseContainerBlockEntity implements
                     }
                 }
 
-                // 2. Supply Tool to Droid if Droid has no pickaxe
-                if (!miner.hasValidPickaxe()) {
-                    ItemStack toolStack = this.items.get(SLOT_TOOL);
-                    if (!toolStack.isEmpty() && (toolStack.is(ItemTags.PICKAXES) || toolStack.getItem() instanceof DiggerItem)) {
-                        miner.getPickaxeInventory().setItem(0, toolStack.copy());
-                        this.items.set(SLOT_TOOL, ItemStack.EMPTY);
-                        level.playSound(null, this.worldPosition, SoundEvents.ARMOR_EQUIP_IRON.value(), SoundSource.BLOCKS, 1.0F, 1.0F);
-                        setChanged();
-                    }
-                }
-
-                // 3. Unload Droid's internal inventory into Station's 9 Output Buffer slots
-                for (int i = 0; i < miner.getInventory().getContainerSize(); i++) {
-                    ItemStack mined = miner.getInventory().getItem(i);
-                    if (!mined.isEmpty()) {
-                        ItemStack remaining = insertIntoOutput(mined);
-                        miner.getInventory().setItem(i, remaining);
-                        if (remaining.getCount() != mined.getCount()) {
+                // 2. Common Inventory Unload into Station's 9 Output Buffer slots
+                for (int i = 0; i < droid.getInventory().getContainerSize(); i++) {
+                    ItemStack drop = droid.getInventory().getItem(i);
+                    if (!drop.isEmpty()) {
+                        ItemStack remaining = insertIntoOutput(drop);
+                        droid.getInventory().setItem(i, remaining);
+                        if (remaining.getCount() != drop.getCount()) {
                             setChanged();
                         }
                     }
                 }
 
-                // 4. Sync Upgrades from Station to Droid
+                // 3. Common Upgrade Sync
                 ItemStack upgradeStack = this.items.get(SLOT_UPGRADE);
-                miner.getUpgradeInventory().setItem(0, upgradeStack.copy());
-                miner.setMode(this.mode);
-            }
-        } else if (droidEntity instanceof dev.droids.entity.FarmerDroidEntity farmer) {
-            double distSq = farmer.distanceToSqr(this.worldPosition.getX() + 0.5D, this.worldPosition.getY() + 1.0D, this.worldPosition.getZ() + 0.5D);
-            if (distSq <= 2.5D) {
-                // 1. Refuel Farmer from Station
-                if (farmer.getFuelTicks() < 3000) {
-                    ItemStack fuelStack = this.items.get(SLOT_FUEL);
-                    if (!fuelStack.isEmpty()) {
-                        int burnTime = fuelStack.getBurnTime(RecipeType.SMELTING);
-                        if (burnTime <= 0 && (fuelStack.is(Items.COAL) || fuelStack.is(Items.CHARCOAL))) burnTime = 1600;
-                        if (burnTime > 0) {
-                            farmer.setFuelTicks(farmer.getFuelTicks() + burnTime);
-                            fuelStack.shrink(1);
-                            level.playSound(null, this.worldPosition, SoundEvents.FURNACE_FIRE_CRACKLE, SoundSource.BLOCKS, 0.8F, 1.2F);
+                droid.getUpgradeInventory().setItem(0, upgradeStack.copy());
+
+                // 4. Miner-specific: Tool replenishment & Mode sync
+                if (droid instanceof MinerDroidEntity miner) {
+                    if (!miner.hasValidPickaxe()) {
+                        ItemStack toolStack = this.items.get(SLOT_TOOL);
+                        if (!toolStack.isEmpty() && (toolStack.is(ItemTags.PICKAXES) || toolStack.getItem() instanceof DiggerItem)) {
+                            miner.getPickaxeInventory().setItem(0, toolStack.copy());
+                            this.items.set(SLOT_TOOL, ItemStack.EMPTY);
+                            level.playSound(null, this.worldPosition, SoundEvents.ARMOR_EQUIP_IRON.value(), SoundSource.BLOCKS, 1.0F, 1.0F);
                             setChanged();
                         }
                     }
+                    miner.setMode(this.mode);
                 }
-
-                // 2. Unload produce into Station Output Buffer
-                for (int i = 0; i < farmer.getInventory().getContainerSize(); i++) {
-                    ItemStack crop = farmer.getInventory().getItem(i);
-                    if (!crop.isEmpty()) {
-                        ItemStack remaining = insertIntoOutput(crop);
-                        farmer.getInventory().setItem(i, remaining);
-                        if (remaining.getCount() != crop.getCount()) {
-                            setChanged();
-                        }
-                    }
-                }
-
-                // 3. Sync Upgrades
-                ItemStack upgradeStack = this.items.get(SLOT_UPGRADE);
-                farmer.getUpgradeInventory().setItem(0, upgradeStack.copy());
             }
         }
     }

@@ -87,23 +87,15 @@ public class DroidControllerMenu extends AbstractContainerMenu {
                     case 0 -> 1;
                     case 1 -> droid instanceof MinerDroidEntity ? 1 : (droid instanceof FarmerDroidEntity ? 2 : 0);
                     case 2 -> {
-                        if (droid instanceof MinerDroidEntity miner) {
-                            if (!miner.hasFuel()) yield 3;
-                            if (miner.isAscending()) yield 2;
-                            if (miner.isWorking()) yield 1;
-                            yield 0;
-                        } else if (droid instanceof FarmerDroidEntity farmer) {
-                            if (!farmer.hasFuel()) yield 3;
-                            if (farmer.isWorking()) yield 1;
+                        if (droid instanceof dev.droids.entity.AbstractDroidEntity d) {
+                            if (!d.hasFuel()) yield 3;
+                            if (d instanceof MinerDroidEntity miner && miner.isAscending()) yield 2;
+                            if (d.isWorking()) yield 1;
                             yield 0;
                         }
                         yield 0;
                     }
-                    case 3 -> {
-                        if (droid instanceof MinerDroidEntity miner) yield miner.getFuelTicks() / 20;
-                        if (droid instanceof FarmerDroidEntity farmer) yield farmer.getFuelTicks() / 20;
-                        yield 0;
-                    }
+                    case 3 -> droid instanceof dev.droids.entity.AbstractDroidEntity d ? d.getFuelTicks() / 20 : 0;
                     case 4 -> droid != null ? (int) Math.sqrt(droid.distanceToSqr(stationPos.getX() + 0.5D, stationPos.getY(), stationPos.getZ() + 0.5D)) : 0;
                     case 5 -> station.getMode();
                     case 6 -> station.getWorkDirection().get2DDataValue();

@@ -7,7 +7,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Container;
-import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
@@ -17,7 +16,6 @@ import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.EnumSet;
 import java.util.List;
 
 /**
@@ -28,7 +26,7 @@ import java.util.List;
  * - VERTICAL STEAM THRUSTERS: Boosts straight up to Droid Station when full, low fuel, or recalled.
  * - DROID STATION DOCKING: Unloads ore buffer, auto-refuels, restocks pickaxe.
  */
-public class MinerRoutineGoal extends Goal {
+public class MinerRoutineGoal extends AbstractDroidGoal<MinerDroidEntity> {
 
     public enum State {
         IDLE,
@@ -38,10 +36,7 @@ public class MinerRoutineGoal extends Goal {
         DESCENDING_TO_WORK
     }
 
-    private final MinerDroidEntity droid;
-    private final double speedModifier;
     private State state = State.IDLE;
-
     private BlockPos currentTarget = null;
     private int miningProgress = 0;
     private int repathTimer = 0;
@@ -57,19 +52,7 @@ public class MinerRoutineGoal extends Goal {
     private int tunnelSubIndex = 0; // 0..8 for 3x3 face
 
     public MinerRoutineGoal(MinerDroidEntity droid, double speedModifier) {
-        this.droid = droid;
-        this.speedModifier = speedModifier;
-        this.setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
-    }
-
-    @Override
-    public boolean canUse() {
-        return this.droid.hasFuel();
-    }
-
-    @Override
-    public boolean canContinueToUse() {
-        return this.droid.hasFuel();
+        super(droid, speedModifier);
     }
 
     @Override
@@ -107,7 +90,6 @@ public class MinerRoutineGoal extends Goal {
         this.droid.setWorking(false);
         this.droid.setAscending(false);
 
-        // Check if ready to resume work
         if (this.droid.hasValidPickaxe() && this.droid.getFuelTicks() > 400 && !isInventoryFull()) {
             if (this.droid.getMode() == MinerDroidEntity.MODE_QUARRY && this.currentQuarryY < this.droid.getStartY() - 1) {
                 this.state = State.DESCENDING_TO_WORK;
@@ -118,7 +100,6 @@ public class MinerRoutineGoal extends Goal {
     }
 
     private void tickDigging() {
-        // Return conditions: Full Inventory, Low Fuel (<10s), Broken Tool, or Recall Command
         if (isInventoryFull() || this.droid.getFuelTicks() < 200 || !this.droid.hasValidPickaxe() || this.droid.isRecallRequested()) {
             this.droid.setWorking(false);
             this.state = State.ASCENDING_TO_STATION;
@@ -142,7 +123,6 @@ public class MinerRoutineGoal extends Goal {
             this.currentTarget = findNextMiningBlock();
             this.miningProgress = 0;
             if (this.currentTarget == null) {
-                // Completed quarry or tunnel!
                 this.state = State.ASCENDING_TO_STATION;
                 return;
             }
@@ -162,11 +142,9 @@ public class MinerRoutineGoal extends Goal {
         );
 
         if (distSq <= 16.0D) {
-            // Within 4-block mining reach
             this.droid.getNavigation().stop();
             mineBlockAt(this.currentTarget);
         } else {
-            // Move towards standable position above or next to target
             BlockPos standPos = this.currentTarget.above();
             if (++this.repathTimer >= 15 || this.droid.getNavigation().isDone()) {
                 this.repathTimer = 0;
@@ -177,7 +155,6 @@ public class MinerRoutineGoal extends Goal {
                         this.speedModifier
                 );
 
-                // If path obstructed in deep quarry, use thruster nudge
                 if (!pathFound && this.droid.getMode() == MinerDroidEntity.MODE_QUARRY) {
                     double dx = (standPos.getX() + 0.5D) - this.droid.getX();
                     double dz = (standPos.getZ() + 0.5D) - this.droid.getZ();
@@ -202,7 +179,6 @@ public class MinerRoutineGoal extends Goal {
         double dz = (stationPos.getZ() + 0.5D) - this.droid.getZ();
         double hDistSq = dx * dx + dz * dz;
 
-        // Phase 1: Vertical steam thruster climb up to station height
         if (this.droid.getY() < targetY - 0.2D) {
             double hDist = Math.sqrt(hDistSq);
             double vx = hDist > 0.5D ? (dx / hDist) * 0.08D : 0.0D;
@@ -210,9 +186,7 @@ public class MinerRoutineGoal extends Goal {
             this.droid.setDeltaMovement(vx, 0.35D, vz);
             this.droid.fallDistance = 0.0F;
         } else {
-            // Phase 2: Horizontal glide into station docking cradle
             if (hDistSq <= 0.6D) {
-                // Docked successfully!
                 this.droid.setDeltaMovement(Vec3.ZERO);
                 this.droid.setPos(stationPos.getX() + 0.5D, targetY, stationPos.getZ() + 0.5D);
                 this.droid.setAscending(false);
@@ -233,23 +207,19 @@ public class MinerRoutineGoal extends Goal {
 
         this.serviceTimer++;
 
-        // Rest at station for 25 ticks (1.25s) while station unloads, refuels, and equips tool
         if (this.serviceTimer >= 25) {
-            // If user requested recall, remain parked at station
             if (this.droid.isRecallRequested()) {
                 this.droid.clearRecall();
                 this.state = State.IDLE;
                 return;
             }
 
-            // Check if quarry completed (reached strict 20-block depth limit)
             int maxDepthY = this.droid.getStartY() - 20;
             if (this.droid.getMode() == MinerDroidEntity.MODE_QUARRY && this.currentQuarryY < maxDepthY) {
                 this.state = State.IDLE;
                 return;
             }
 
-            // Check if serviced and ready to work
             if (this.droid.hasFuel() && this.droid.hasValidPickaxe() && !isInventoryFull()) {
                 if (this.droid.getMode() == MinerDroidEntity.MODE_QUARRY && this.currentQuarryY < this.droid.getStartY() - 1) {
                     this.state = State.DESCENDING_TO_WORK;
@@ -257,7 +227,6 @@ public class MinerRoutineGoal extends Goal {
                     this.state = State.DIGGING;
                 }
             } else {
-                // Keep waiting at dock for fuel or tools
                 this.serviceTimer = 10;
             }
         }
@@ -278,14 +247,12 @@ public class MinerRoutineGoal extends Goal {
         double dz = (quarryCenter.getZ() + 0.5D) - this.droid.getZ();
         double hDist = Math.sqrt(dx * dx + dz * dz);
 
-        // Controlled descent with thrusters to prevent fall damage
         if (this.droid.getY() > targetY + 0.5D) {
             double vx = hDist > 0.5D ? (dx / hDist) * 0.15D : 0.0D;
             double vz = hDist > 0.5D ? (dz / hDist) * 0.15D : 0.0D;
             this.droid.setDeltaMovement(vx, -0.22D, vz);
             this.droid.fallDistance = 0.0F;
         } else {
-            // Landed at work layer
             this.droid.setDeltaMovement(Vec3.ZERO);
             this.droid.fallDistance = 0.0F;
             this.state = State.DIGGING;
@@ -344,7 +311,6 @@ public class MinerRoutineGoal extends Goal {
         }
     }
 
-    // Tunnel boring: 3x3 bore face moving forward
     private @org.jetbrains.annotations.Nullable BlockPos findNextTunnelBlock() {
         Level level = this.droid.level();
         Direction forward = this.droid.getInitialDirection();
@@ -355,8 +321,8 @@ public class MinerRoutineGoal extends Goal {
         while (this.tunnelStep < maxDist) {
             BlockPos centerOfSlice = home.relative(forward, this.tunnelStep);
 
-            int rOffset = (this.tunnelSubIndex % 3) - 1; // -1, 0, 1
-            int yOffset = (this.tunnelSubIndex / 3);      // 0, 1, 2
+            int rOffset = (this.tunnelSubIndex % 3) - 1;
+            int yOffset = (this.tunnelSubIndex / 3);
 
             BlockPos target = centerOfSlice.relative(right, rOffset).above(yOffset);
             this.tunnelSubIndex++;
@@ -374,7 +340,6 @@ public class MinerRoutineGoal extends Goal {
         return null;
     }
 
-    // Quarry excavation: layer by layer downward, STRICT 20-BLOCK ABSOLUTE DEPTH LIMIT!
     private @org.jetbrains.annotations.Nullable BlockPos findNextQuarryBlock() {
         Level level = this.droid.level();
         int minX = this.droid.getAreaMinX();
@@ -382,9 +347,8 @@ public class MinerRoutineGoal extends Goal {
         int minZ = this.droid.getAreaMinZ();
         int maxZ = this.droid.getAreaMaxZ();
         int startY = this.droid.getStartY();
-        int maxDepthY = startY - 20; // STRICT 20-BLOCK LIMIT!
+        int maxDepthY = startY - 20;
 
-        // If area not configured, fallback to 5x5 centered on station
         if (!this.droid.hasWorkArea()) {
             int r = this.droid.getMaxAllowedQuarryDimension() / 2;
             minX = this.droid.getHomePosition().getX() - r;
@@ -408,9 +372,9 @@ public class MinerRoutineGoal extends Goal {
                 this.quarryX++;
             }
             this.quarryX = minX;
-            this.currentQuarryY--; // descend to next depth layer
+            this.currentQuarryY--;
         }
-        return null; // All 20 layers completed!
+        return null;
     }
 
     private void mineBlockAt(BlockPos target) {
@@ -447,16 +411,5 @@ public class MinerRoutineGoal extends Goal {
             this.currentTarget = null;
             this.droid.setWorking(false);
         }
-    }
-
-    private boolean isInventoryFull() {
-        Container inv = this.droid.getInventory();
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            ItemStack stack = inv.getItem(i);
-            if (stack.isEmpty() || stack.getCount() < stack.getMaxStackSize()) {
-                return false;
-            }
-        }
-        return true;
     }
 }
