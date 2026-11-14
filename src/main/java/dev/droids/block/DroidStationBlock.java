@@ -157,6 +157,25 @@ public class DroidStationBlock extends BaseEntityBlock {
             return ItemInteractionResult.sidedSuccess(level.isClientSide);
         }
 
+        // Link Droid Controller Tablet
+        if (stack.is(ModItems.DROID_CONTROLLER.get())) {
+            if (!level.isClientSide) {
+                net.minecraft.world.item.component.CustomData.update(net.minecraft.core.component.DataComponents.CUSTOM_DATA, stack, tag -> {
+                    tag.putInt("StationX", pos.getX());
+                    tag.putInt("StationY", pos.getY());
+                    tag.putInt("StationZ", pos.getZ());
+                });
+                level.playSound(null, pos, SoundEvents.NOTE_BLOCK_CHIME.value(), SoundSource.PLAYERS, 1.0F, 1.4F);
+                if (player != null) {
+                    player.displayClientMessage(
+                            Component.translatable("message.droids.controller.linked", pos.getX(), pos.getY(), pos.getZ()),
+                            true
+                    );
+                }
+            }
+            return ItemInteractionResult.sidedSuccess(level.isClientSide);
+        }
+
         return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
     }
 

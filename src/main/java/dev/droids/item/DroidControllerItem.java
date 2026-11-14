@@ -1,13 +1,10 @@
 package dev.droids.item;
 
 import dev.droids.block.entity.DroidStationBlockEntity;
-import dev.droids.entity.FarmerDroidEntity;
-import dev.droids.entity.MinerDroidEntity;
 import dev.droids.menu.DroidControllerMenu;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -28,15 +25,11 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import java.util.List;
 
 /**
- * Handheld Steampunk Droid Controller Tablet.
+ * Handheld Clockwork Droid Telemetry Monitor Tablet.
  *
  * Usage:
- * - Right-click Droid Station / Droid  → Link tablet to that station.
- * - Right-click any block (non-station) → Mark Corner 1 or Corner 2 for the work area.
- * - Shift + Right-click any block       → Clears all stored area corners.
- * - Right-click in AIR                  → Open telemetry / control dashboard.
- *
- * Area is applied to the assigned Droid via "Apply Area" button inside the dashboard.
+ * - Right-click Droid Station / Droid → Link tablet to that station.
+ * - Right-click in AIR                 → Open telemetry monitor dashboard.
  */
 public class DroidControllerItem extends Item {
 
@@ -44,7 +37,7 @@ public class DroidControllerItem extends Item {
         super(properties);
     }
 
-    // ─── useOn: Link to Station OR mark area corners ───────────────────────────
+    // ─── useOn: Link to Station ────────────────────────────────────────────────
 
     @Override
     public InteractionResult useOn(UseOnContext context) {
@@ -55,7 +48,6 @@ public class DroidControllerItem extends Item {
 
         if (player == null) return InteractionResult.PASS;
 
-        // ── Linking: Right-click on Droid Station ──────────────────────────────
         BlockEntity be = level.getBlockEntity(pos);
         if (be instanceof DroidStationBlockEntity) {
             if (!level.isClientSide) {
@@ -63,9 +55,6 @@ public class DroidControllerItem extends Item {
                     tag.putInt("StationX", pos.getX());
                     tag.putInt("StationY", pos.getY());
                     tag.putInt("StationZ", pos.getZ());
-                    // Clear any pending area corners when re-linking
-                    tag.remove("C1X"); tag.remove("C1Y"); tag.remove("C1Z");
-                    tag.remove("C2X"); tag.remove("C2Y"); tag.remove("C2Z");
                 });
                 level.playSound(null, pos, SoundEvents.NOTE_BLOCK_CHIME.value(), SoundSource.PLAYERS, 1.0F, 1.4F);
                 player.displayClientMessage(
@@ -76,54 +65,8 @@ public class DroidControllerItem extends Item {
             return InteractionResult.sidedSuccess(level.isClientSide);
         }
 
-        // ── Area marking: Shift + Right-click = clear corners ─────────────────
-        if (player.isShiftKeyDown()) {
-            if (!level.isClientSide) {
-                CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
-                    tag.remove("C1X"); tag.remove("C1Y"); tag.remove("C1Z");
-                    tag.remove("C2X"); tag.remove("C2Y"); tag.remove("C2Z");
-                });
-                player.displayClientMessage(Component.translatable("message.droids.controller.area_cleared"), true);
-            }
-            return InteractionResult.sidedSuccess(level.isClientSide);
-        }
-
-        // ── Area marking: Normal Right-click on any block = mark corner ────────
-        if (!level.isClientSide) {
-            CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
-            boolean hasC1 = customData != null && customData.contains("C1X");
-
-            if (!hasC1) {
-                // Set Corner 1
-                CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
-                    tag.putInt("C1X", pos.getX());
-                    tag.putInt("C1Y", pos.getY());
-                    tag.putInt("C1Z", pos.getZ());
-                    tag.remove("C2X"); tag.remove("C2Y"); tag.remove("C2Z");
-                });
-                player.displayClientMessage(
-                        Component.literal("§e[Controller] §7Corner 1 marked at §f(" + pos.getX() + ", " + pos.getZ() + ")§7. Mark Corner 2 or open tablet to apply."),
-                        true
-                );
-            } else {
-                // Set Corner 2 and show preview
-                CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
-                    tag.putInt("C2X", pos.getX());
-                    tag.putInt("C2Y", pos.getY());
-                    tag.putInt("C2Z", pos.getZ());
-                });
-                CustomData updatedData = stack.get(DataComponents.CUSTOM_DATA);
-                int c1x = updatedData.copyTag().getInt("C1X");
-                int c1z = updatedData.copyTag().getInt("C1Z");
-                int w = Math.abs(pos.getX() - c1x) + 1;
-                int l = Math.abs(pos.getZ() - c1z) + 1;
-                player.displayClientMessage(
-                        Component.literal("§e[Controller] §7Corner 2 marked. Area: §a" + w + "×" + l + "§7 blocks. Open tablet to apply."),
-                        true
-                );
-            }
-        }
-        return InteractionResult.sidedSuccess(level.isClientSide);
+        // If clicked on any other block, open menu if linked
+        return use(level, player, context.getHand()).getResult();
     }
 
     // ─── interactLivingEntity: Link tablet by right-clicking the Droid itself ──
@@ -172,21 +115,6 @@ public class DroidControllerItem extends Item {
                         ),
                         buffer -> {
                             buffer.writeBlockPos(stationPos);
-                            // Pass pending corners to menu
-                            boolean hasC1 = customData.contains("C1X");
-                            boolean hasC2 = customData.contains("C2X");
-                            buffer.writeBoolean(hasC1);
-                            if (hasC1) {
-                                buffer.writeInt(customData.copyTag().getInt("C1X"));
-                                buffer.writeInt(customData.copyTag().getInt("C1Y"));
-                                buffer.writeInt(customData.copyTag().getInt("C1Z"));
-                            }
-                            buffer.writeBoolean(hasC2);
-                            if (hasC2) {
-                                buffer.writeInt(customData.copyTag().getInt("C2X"));
-                                buffer.writeInt(customData.copyTag().getInt("C2Y"));
-                                buffer.writeInt(customData.copyTag().getInt("C2Z"));
-                            }
                         }
                 );
             }
@@ -211,92 +139,10 @@ public class DroidControllerItem extends Item {
             int sy = customData.copyTag().getInt("StationY");
             int sz = customData.copyTag().getInt("StationZ");
             tooltipComponents.add(Component.translatable("tooltip.droids.controller.linked_pos", sx, sy, sz));
-
-            boolean hasC1 = customData.contains("C1X");
-            boolean hasC2 = customData.contains("C2X");
-            if (hasC1 && hasC2) {
-                int c1x = customData.copyTag().getInt("C1X");
-                int c1z = customData.copyTag().getInt("C1Z");
-                int c2x = customData.copyTag().getInt("C2X");
-                int c2z = customData.copyTag().getInt("C2Z");
-                int w = Math.abs(c2x - c1x) + 1;
-                int l = Math.abs(c2z - c1z) + 1;
-                tooltipComponents.add(Component.literal("§aArea Marked: " + w + "×" + l));
-            } else if (hasC1) {
-                int c1x = customData.copyTag().getInt("C1X");
-                int c1z = customData.copyTag().getInt("C1Z");
-                tooltipComponents.add(Component.literal("§eCorner 1: (" + c1x + ", " + c1z + ") — awaiting Corner 2"));
-            }
         } else {
             tooltipComponents.add(Component.translatable("tooltip.droids.controller.not_linked"));
         }
 
-        tooltipComponents.add(Component.translatable("tooltip.droids.controller.instructions"));
-    }
-
-    // ─── Static helper: apply pending area from item to assigned droid ─────────
-
-    /**
-     * Called when player presses "Apply Area" button (button id=3) in the dashboard.
-     * Reads corners from the item in the player's hand and applies them to the droid.
-     */
-    public static boolean applyAreaToDroid(Player player, BlockPos stationPos) {
-        ItemStack stack = findControllerInHands(player);
-        if (stack.isEmpty()) return false;
-
-        CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
-        if (customData == null || !customData.contains("C1X") || !customData.contains("C2X")) return false;
-
-        int c1x = customData.copyTag().getInt("C1X");
-        int c1z = customData.copyTag().getInt("C1Z");
-        int c2x = customData.copyTag().getInt("C2X");
-        int c2z = customData.copyTag().getInt("C2Z");
-
-        int minX = Math.min(c1x, c2x);
-        int maxX = Math.max(c1x, c2x);
-        int minZ = Math.min(c1z, c2z);
-        int maxZ = Math.max(c1z, c2z);
-
-        if (!(player.level() instanceof ServerLevel serverLevel)) return false;
-        if (!(serverLevel.getBlockEntity(stationPos) instanceof DroidStationBlockEntity station)) return false;
-
-        var droidEntity = station.getAssignedDroid(serverLevel);
-
-        if (droidEntity instanceof dev.droids.entity.AbstractDroidEntity droid) {
-            int max = droid.getMaxAllowedAreaDimension();
-            int w = maxX - minX + 1;
-            int l = maxZ - minZ + 1;
-            if (w > max || l > max) {
-                player.displayClientMessage(
-                        Component.literal("§c[Controller] Area " + w + "×" + l + " exceeds limit (" + max + "×" + max + "). Add Range Upgrades."),
-                        false
-                );
-                return false;
-            }
-            droid.setWorkArea(minX, minZ, maxX, maxZ);
-            player.displayClientMessage(
-                    Component.literal("§a[Controller] Area " + w + "×" + l + " applied to " + droid.getDroidTypeName().getString() + "!"),
-                    true
-            );
-        } else {
-            player.displayClientMessage(Component.literal("§c[Controller] No Droid docked at that Station."), false);
-            return false;
-        }
-
-        // Clear corners from item after successful application
-        CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
-            tag.remove("C1X"); tag.remove("C1Y"); tag.remove("C1Z");
-            tag.remove("C2X"); tag.remove("C2Y"); tag.remove("C2Z");
-        });
-
-        return true;
-    }
-
-    private static ItemStack findControllerInHands(Player player) {
-        for (InteractionHand hand : InteractionHand.values()) {
-            ItemStack stack = player.getItemInHand(hand);
-            if (stack.getItem() instanceof DroidControllerItem) return stack;
-        }
-        return ItemStack.EMPTY;
+        tooltipComponents.add(Component.literal("§7Right-click in air to view Telemetry."));
     }
 }

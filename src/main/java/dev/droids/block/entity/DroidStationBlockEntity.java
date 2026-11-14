@@ -68,6 +68,17 @@ public class DroidStationBlockEntity extends BaseContainerBlockEntity implements
         // Find assigned Droid if present
         Entity droidEntity = getAssignedDroid(level);
 
+        // Auto-clear occupied status if assigned Droid died or despawned
+        if (this.assignedDroidUUID != null && (droidEntity == null || !droidEntity.isAlive())) {
+            this.assignedDroidUUID = null;
+            this.assignedDroidEntityId = -1;
+            BlockState currentState = level.getBlockState(this.worldPosition);
+            if (currentState.hasProperty(dev.droids.block.DroidStationBlock.OCCUPIED) && currentState.getValue(dev.droids.block.DroidStationBlock.OCCUPIED)) {
+                level.setBlock(this.worldPosition, currentState.setValue(dev.droids.block.DroidStationBlock.OCCUPIED, false), 3);
+            }
+            setChanged();
+        }
+
         if (droidEntity instanceof dev.droids.entity.AbstractDroidEntity droid) {
             // Check if Droid is docked on top of station (dist <= 1.5 blocks)
             double distSq = droid.distanceToSqr(this.worldPosition.getX() + 0.5D, this.worldPosition.getY() + 1.0D, this.worldPosition.getZ() + 0.5D);
@@ -103,7 +114,7 @@ public class DroidStationBlockEntity extends BaseContainerBlockEntity implements
                 ItemStack upgradeStack = this.items.get(SLOT_UPGRADE);
                 droid.getUpgradeInventory().setItem(0, upgradeStack.copy());
 
-                // 4. Miner-specific: Tool replenishment & Mode sync
+                // 4. Miner-specific: Tool replenishment
                 if (droid instanceof MinerDroidEntity miner) {
                     if (!miner.hasValidPickaxe()) {
                         ItemStack toolStack = this.items.get(SLOT_TOOL);
@@ -114,7 +125,6 @@ public class DroidStationBlockEntity extends BaseContainerBlockEntity implements
                             setChanged();
                         }
                     }
-                    miner.setMode(this.mode);
                 }
             }
         }

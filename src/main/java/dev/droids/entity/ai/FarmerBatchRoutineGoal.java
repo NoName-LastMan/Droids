@@ -19,11 +19,13 @@ import net.minecraft.world.level.block.state.BlockState;
 import java.util.*;
 
 /**
- * High-performance Automated Guided Batch Routine for Farmer Droid.
- * 1. IDLE: Rests motionless at Home dock. Scans entire field on a 10s timer.
- * 2. HARVESTING: Compiles all mature crops into an optimized route, chain-harvesting without pauses.
- * 3. DEPOSITING: Walks directly to linked chest and unloads all harvested produce.
- * 4. RETURNING: Returns to Home dock and enters motionless standby until the next scheduled cycle.
+ * Clockwork Cultivator AI for Farmer Droid.
+ *
+ * Design Philosophy:
+ * - Simple, reliable, and predictable.
+ * - Operates in a natural farm radius around the central Droid Station.
+ * - Harvests fully grown crops and immediately replants seeds.
+ * - Deposits produce directly into the Droid Station output buffer.
  */
 public class FarmerBatchRoutineGoal extends AbstractDroidGoal<FarmerDroidEntity> {
 
@@ -63,13 +65,13 @@ public class FarmerBatchRoutineGoal extends AbstractDroidGoal<FarmerDroidEntity>
         }
     }
 
-    // 1. IDLE: Wait at home dock and scan area periodically
+    // 1. IDLE: Rest at station and scan field on a periodic timer
     private void tickIdle() {
         this.droid.setWorking(false);
         this.scanTimer++;
 
-        // Periodic field scan every 10 seconds (200 ticks)
-        if (this.scanTimer >= 200) {
+        // Periodic farm scan every 6 seconds (120 ticks)
+        if (this.scanTimer >= 120) {
             this.scanTimer = 0;
             planHarvestRoute();
 
@@ -82,8 +84,12 @@ public class FarmerBatchRoutineGoal extends AbstractDroidGoal<FarmerDroidEntity>
                         this.currentCropTarget.getZ() + 0.5D,
                         this.speedModifier
                 );
-            } else if (hasItemsToDeposit() && this.droid.getLinkedChest().isPresent()) {
-                this.state = RoutineState.DEPOSITING;
+            } else if (hasItemsToDeposit()) {
+                if (this.droid.getLinkedChest().isPresent()) {
+                    this.state = RoutineState.DEPOSITING;
+                } else {
+                    this.state = RoutineState.RETURNING;
+                }
             }
         }
     }
@@ -92,32 +98,30 @@ public class FarmerBatchRoutineGoal extends AbstractDroidGoal<FarmerDroidEntity>
     private void planHarvestRoute() {
         this.harvestQueue.clear();
         Level level = this.droid.level();
+        BlockPos home = this.droid.getHomePosition();
 
-        int minX = this.droid.getEffectiveMinX();
-        int maxX = this.droid.getEffectiveMaxX();
-        int minZ = this.droid.getEffectiveMinZ();
-        int maxZ = this.droid.getEffectiveMaxZ();
-        int currentY = this.droid.getBlockY();
+        int r = this.droid.getMaxAllowedAreaDimension() / 2;
+        int minX = home.getX() - r;
+        int maxX = home.getX() + r;
+        int minZ = home.getZ() - r;
+        int maxZ = home.getZ() + r;
+        int currentY = home.getY();
 
         List<BlockPos> found = new ArrayList<>();
 
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
-                for (int y = currentY - 2; y <= currentY + 2; y++) {
-                    BlockPos farmPos = new BlockPos(x, y, z);
-                    BlockState farmState = level.getBlockState(farmPos);
+                for (int y = currentY - 1; y <= currentY + 2; y++) {
+                    BlockPos p = new BlockPos(x, y, z);
+                    BlockState s = level.getBlockState(p);
 
-                    if (farmState.is(Blocks.FARMLAND)) {
-                        BlockPos cropPos = farmPos.above();
-                        BlockState cropState = level.getBlockState(cropPos);
-
-                        if (cropState.getBlock() instanceof CropBlock crop && crop.isMaxAge(cropState)) {
-                            found.add(cropPos);
-                            break;
-                        } else if (cropState.is(Blocks.PUMPKIN) || cropState.is(Blocks.MELON)) {
-                            found.add(cropPos);
-                            break;
-                        }
+                    // Standard crops (Wheat, Carrots, Potatoes, Beetroot)
+                    if (s.getBlock() instanceof CropBlock crop && crop.isMaxAge(s)) {
+                        found.add(p);
+                    }
+                    // Melons and Pumpkins (attached stems, can be on dirt/grass)
+                    else if (s.is(Blocks.PUMPKIN) || s.is(Blocks.MELON)) {
+                        found.add(p);
                     }
                 }
             }
@@ -147,7 +151,7 @@ public class FarmerBatchRoutineGoal extends AbstractDroidGoal<FarmerDroidEntity>
         }
     }
 
-    // 2. HARVESTING: Chain-harvests crops without pauses
+    // 2. HARVESTING: Chain-harvests crops and replants
     private void tickHarvesting() {
         if (this.currentCropTarget == null) {
             if (!this.harvestQueue.isEmpty()) {
@@ -223,6 +227,7 @@ public class FarmerBatchRoutineGoal extends AbstractDroidGoal<FarmerDroidEntity>
 
         if (cropState.getBlock() instanceof CropBlock crop && crop.isMaxAge(cropState)) {
             List<ItemStack> drops = Block.getDrops(cropState, serverLevel, cropPos, null, this.droid, ItemStack.EMPTY);
+            // Replant to age 0
             serverLevel.setBlock(cropPos, crop.getStateForAge(0), 3);
             serverLevel.playSound(null, cropPos, SoundEvents.CROP_BREAK, SoundSource.BLOCKS, 1.0F, 1.1F);
 
@@ -242,7 +247,7 @@ public class FarmerBatchRoutineGoal extends AbstractDroidGoal<FarmerDroidEntity>
         }
     }
 
-    // 3. DEPOSITING: Walk straight to linked chest and deposit
+    // 3. DEPOSITING: Walk straight to optional linked chest
     private void tickDepositing() {
         Optional<BlockPos> chestOpt = this.droid.getLinkedChest();
         if (chestOpt.isEmpty() || !hasItemsToDeposit()) {
@@ -302,19 +307,20 @@ public class FarmerBatchRoutineGoal extends AbstractDroidGoal<FarmerDroidEntity>
         }
     }
 
-    // 4. RETURNING: Return to Home dock and enter standby
+    // 4. RETURNING: Return to Home Droid Station and enter standby
     private void tickReturning() {
         BlockPos homePos = this.droid.getHomePosition();
         double distSq = this.droid.distanceToSqr(homePos.getX() + 0.5D, homePos.getY(), homePos.getZ() + 0.5D);
 
-        if (distSq <= 3.0D) {
+        // When arrived at Station dock (dist <= 2.0 blocks), DroidStationBlockEntity automatically unloads inventory
+        if (distSq <= 2.2D) {
             this.droid.getNavigation().stop();
             this.state = RoutineState.IDLE;
             this.scanTimer = 0;
         } else {
             if (++this.repathTimer >= 20 || this.droid.getNavigation().isDone()) {
                 this.repathTimer = 0;
-                this.droid.getNavigation().moveTo(homePos.getX() + 0.5D, homePos.getY(), homePos.getZ() + 0.5D, this.speedModifier * 0.9D);
+                this.droid.getNavigation().moveTo(homePos.getX() + 0.5D, homePos.getY() + 0.88D, homePos.getZ() + 0.5D, this.speedModifier * 0.9D);
             }
         }
     }
