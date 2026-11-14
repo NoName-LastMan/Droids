@@ -5,6 +5,8 @@ import dev.droids.client.model.FarmerDroidModel;
 import dev.droids.client.model.MinerDroidModel;
 import dev.droids.client.renderer.FarmerDroidRenderer;
 import dev.droids.client.renderer.MinerDroidRenderer;
+import dev.droids.client.screen.DroidControllerScreen;
+import dev.droids.client.screen.DroidStationScreen;
 import dev.droids.client.screen.FarmerDroidScreen;
 import dev.droids.client.screen.MinerDroidScreen;
 import dev.droids.init.ModEntities;
@@ -34,5 +36,7 @@ public class DroidsClient {
     public static void registerScreens(RegisterMenuScreensEvent event) {
         event.register(ModMenuTypes.FARMER_DROID_MENU.get(), FarmerDroidScreen::new);
         event.register(ModMenuTypes.MINER_DROID_MENU.get(), MinerDroidScreen::new);
+        event.register(ModMenuTypes.DROID_STATION_MENU.get(), DroidStationScreen::new);
+        event.register(ModMenuTypes.DROID_CONTROLLER_MENU.get(), DroidControllerScreen::new);
     }
 }

@@ -231,15 +231,20 @@ public class FarmerDroidEntity extends PathfinderMob {
             return super.mobInteract(player, hand);
         }
 
-        if (!this.level().isClientSide && player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
-            serverPlayer.openMenu(
-                    new SimpleMenuProvider(
-                            (containerId, playerInv, p) -> new FarmerDroidMenu(containerId, playerInv, this, createMenuData()),
-                            Component.translatable("entity.droids.farmer_droid")
-                    ),
-                    buffer -> buffer.writeInt(this.getId())
+        if (held.is(ModItems.DROID_CONTROLLER.get())) {
+            return InteractionResult.PASS;
+        }
+
+        if (!this.level().isClientSide) {
+            int fuelSec = getFuelTicks() / 20;
+            String status = !hasFuel() ? "Unpowered" : (isWorking() ? "Harvesting" : "Standby");
+            BlockPos home = getHomePosition();
+            player.displayClientMessage(
+                    Component.literal("§2[Farmer Droid] §7Status: §f" + status +
+                            " §7| Fuel: §a" + fuelSec + "s" +
+                            " §7| Base: §b(" + home.getX() + ", " + home.getY() + ", " + home.getZ() + ")"),
+                    true
             );
-            return InteractionResult.CONSUME;
         }
 
         return InteractionResult.sidedSuccess(this.level().isClientSide);

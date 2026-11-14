@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "droids:block/droid_station" },
+    "facing=east": { "model": "droids:block/droid_station", "y": 90 },
+    "facing=south": { "model": "droids:block/droid_station", "y": 180 },
+    "facing=west": { "model": "droids:block/droid_station", "y": 270 }
+  }
+}

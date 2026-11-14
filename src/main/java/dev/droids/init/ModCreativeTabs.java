@@ -17,9 +17,11 @@ public class ModCreativeTabs {
                     .title(Component.translatable("itemGroup.droids"))
                     .icon(() -> new ItemStack(ModItems.FARMER_DROID.get()))
                     .displayItems((parameters, output) -> {
-                        output.accept(ModItems.FARMER_DROID.get());
-                        output.accept(ModItems.MINER_DROID.get());
+                        output.accept(ModBlocks.DROID_STATION_ITEM.get());
+                        output.accept(ModItems.DROID_CONTROLLER.get());
                         output.accept(ModItems.DROID_WRENCH.get());
+                        output.accept(ModItems.MINER_DROID.get());
+                        output.accept(ModItems.FARMER_DROID.get());
                         output.accept(ModItems.RANGE_UPGRADE.get());
                     })
                     .build());

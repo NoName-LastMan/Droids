@@ -65,6 +65,8 @@ public class MinerDroidEntity extends PathfinderMob {
             SynchedEntityData.defineId(MinerDroidEntity.class, EntityDataSerializers.DIRECTION);
     private static final EntityDataAccessor<Integer> START_Y =
             SynchedEntityData.defineId(MinerDroidEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Boolean> IS_ASCENDING =
+            SynchedEntityData.defineId(MinerDroidEntity.class, EntityDataSerializers.BOOLEAN);
 
     private static final EntityDataAccessor<Boolean> HAS_WORK_AREA =
             SynchedEntityData.defineId(MinerDroidEntity.class, EntityDataSerializers.BOOLEAN);
@@ -112,6 +114,7 @@ public class MinerDroidEntity extends PathfinderMob {
         builder.define(MODE, MODE_TUNNEL);
         builder.define(INITIAL_DIRECTION, Direction.NORTH);
         builder.define(START_Y, 0);
+        builder.define(IS_ASCENDING, false);
         builder.define(HAS_WORK_AREA, false);
         builder.define(AREA_MIN_X, 0);
         builder.define(AREA_MIN_Z, 0);
@@ -146,6 +149,28 @@ public class MinerDroidEntity extends PathfinderMob {
 
     public void setStartY(int y) {
         this.entityData.set(START_Y, y);
+    }
+
+    public boolean isAscending() {
+        return this.entityData.get(IS_ASCENDING);
+    }
+
+    public void setAscending(boolean ascending) {
+        this.entityData.set(IS_ASCENDING, ascending);
+    }
+
+    private boolean recallRequested = false;
+
+    public void requestRecall() {
+        this.recallRequested = true;
+    }
+
+    public boolean isRecallRequested() {
+        return this.recallRequested;
+    }
+
+    public void clearRecall() {
+        this.recallRequested = false;
     }
 
     // Home & Area
@@ -316,15 +341,23 @@ public class MinerDroidEntity extends PathfinderMob {
             return super.mobInteract(player, hand);
         }
 
-        if (!this.level().isClientSide && player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
-            serverPlayer.openMenu(
-                    new SimpleMenuProvider(
-                            (containerId, playerInv, p) -> new MinerDroidMenu(containerId, playerInv, this, createMenuData()),
-                            Component.translatable("entity.droids.miner_droid")
-                    ),
-                    buffer -> buffer.writeInt(this.getId())
+        if (held.is(ModItems.DROID_CONTROLLER.get())) {
+            return InteractionResult.PASS;
+        }
+
+        // Clean status notification without cluttered entity GUI
+        if (!this.level().isClientSide) {
+            int fuelSec = getFuelTicks() / 20;
+            String modeStr = getMode() == MODE_TUNNEL ? "Tunnel" : "Quarry";
+            String status = !hasFuel() ? "Unpowered" : (isAscending() ? "Vertical Thrusters" : (isWorking() ? "Mining" : "Standby"));
+            BlockPos home = getHomePosition();
+            player.displayClientMessage(
+                    Component.literal("§6[Miner Droid] §7Status: §f" + status +
+                            " §7| Fuel: §a" + fuelSec + "s" +
+                            " §7| Mode: §e" + modeStr +
+                            " §7| Base: §b(" + home.getX() + ", " + home.getY() + ", " + home.getZ() + ")"),
+                    true
             );
-            return InteractionResult.CONSUME;
         }
 
         return InteractionResult.sidedSuccess(this.level().isClientSide);
@@ -377,7 +410,38 @@ public class MinerDroidEntity extends PathfinderMob {
                         0.0D, 0.03D, 0.0D
                 );
             }
+
+            // Heavy vertical steam thruster burst when ascending
+            if (isAscending()) {
+                for (int i = 0; i < 3; i++) {
+                    double ox = (this.random.nextDouble() - 0.5D) * 0.4D;
+                    double oz = (this.random.nextDouble() - 0.5D) * 0.4D;
+                    this.level().addParticle(
+                            ParticleTypes.CAMPFIRE_COSY_SMOKE,
+                            this.getX() + ox,
+                            this.getY() + 0.1D,
+                            this.getZ() + oz,
+                            0.0D, -0.2D, 0.0D
+                    );
+                    this.level().addParticle(
+                            ParticleTypes.FLAME,
+                            this.getX() + ox,
+                            this.getY() + 0.1D,
+                            this.getZ() + oz,
+                            0.0D, -0.15D, 0.0D
+                    );
+                }
+                if (this.tickCount % 6 == 0) {
+                    this.level().playLocalSound(this.getX(), this.getY(), this.getZ(),
+                            SoundEvents.LAVA_EXTINGUISH, SoundSource.NEUTRAL, 0.6F, 1.2F, false);
+                }
+            }
         } else {
+            // Thrusters consume 2x fuel!
+            if (isAscending() && getFuelTicks() > 0) {
+                setFuelTicks(getFuelTicks() - 1);
+            }
+
             // Emergency auto-refuel: only 1 coal if tank is in critical low (<15s)
             if (getFuelTicks() <= 300) {
                 tryEmergencyRefuel();

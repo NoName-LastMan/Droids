@@ -2,6 +2,8 @@ package dev.droids;
 
 import dev.droids.entity.FarmerDroidEntity;
 import dev.droids.entity.MinerDroidEntity;
+import dev.droids.init.ModBlockEntities;
+import dev.droids.init.ModBlocks;
 import dev.droids.init.ModCreativeTabs;
 import dev.droids.init.ModEntities;
 import dev.droids.init.ModItems;
@@ -21,6 +23,8 @@ public class DroidsMod {
         LOGGER.info("Initializing Droids Mod (id: {})", MODID);
 
         // Register registries to mod event bus
+        ModBlocks.BLOCKS.register(modEventBus);
+        ModBlockEntities.BLOCK_ENTITIES.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
         ModEntities.ENTITIES.register(modEventBus);
         ModCreativeTabs.CREATIVE_MODE_TABS.register(modEventBus);
