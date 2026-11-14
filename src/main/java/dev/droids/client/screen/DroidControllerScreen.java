@@ -52,9 +52,9 @@ public class DroidControllerScreen extends AbstractContainerScreen<DroidControll
                 }).bounds(x + 110, y + 36, 58, 14).build()
         );
 
-        // Button 2: Recall Droid to Base via Steam Thrusters
+        // Button 2: Recall Droid to Base via Steam Thrusters (or Resume if task is completed)
         this.recallButton = this.addRenderableWidget(
-                Button.builder(Component.literal("§c⬆ Recall"), button -> {
+                Button.builder(getRecallButtonText(), button -> {
                     if (this.minecraft != null && this.minecraft.gameMode != null) {
                         this.minecraft.gameMode.handleInventoryButtonClick(this.menu.containerId, 2);
                     }
@@ -81,6 +81,12 @@ public class DroidControllerScreen extends AbstractContainerScreen<DroidControll
         return Component.literal("Dir: " + this.menu.getWorkDirection().getName().toUpperCase().substring(0, 1));
     }
 
+    private Component getRecallButtonText() {
+        return this.menu.getDroidStatus() == 4
+                ? Component.literal("§a▶ Resume")
+                : Component.literal("§c⬆ Recall");
+    }
+
     private Component getApplyAreaText() {
         if (this.menu.hasCorner1() && this.menu.hasCorner2()) {
             int w = this.menu.getAreaWidth();
@@ -95,6 +101,7 @@ public class DroidControllerScreen extends AbstractContainerScreen<DroidControll
         super.containerTick();
         if (this.modeButton != null) this.modeButton.setMessage(getModeText());
         if (this.dirButton != null) this.dirButton.setMessage(getDirText());
+        if (this.recallButton != null) this.recallButton.setMessage(getRecallButtonText());
         if (this.applyAreaButton != null) this.applyAreaButton.setMessage(getApplyAreaText());
 
         // Only show Direction button when in Tunnel mode
@@ -139,6 +146,7 @@ public class DroidControllerScreen extends AbstractContainerScreen<DroidControll
             case 1 -> "§aMining";
             case 2 -> "§6Thrusters";
             case 3 -> "§cNo Fuel";
+            case 4 -> "§aCompleted";
             default -> "§7Standby";
         };
 

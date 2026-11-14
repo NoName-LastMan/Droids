@@ -89,7 +89,10 @@ public class DroidControllerMenu extends AbstractContainerMenu {
                     case 2 -> {
                         if (droid instanceof dev.droids.entity.AbstractDroidEntity d) {
                             if (!d.hasFuel()) yield 3;
-                            if (d instanceof MinerDroidEntity miner && miner.isAscending()) yield 2;
+                            if (d instanceof MinerDroidEntity miner) {
+                                if (miner.isTaskCompleted()) yield 4;
+                                if (miner.isAscending()) yield 2;
+                            }
                             if (d.isWorking()) yield 1;
                             yield 0;
                         }
@@ -140,7 +143,16 @@ public class DroidControllerMenu extends AbstractContainerMenu {
             if (serverLevel.getBlockEntity(this.stationPos) instanceof DroidStationBlockEntity station) {
                 if (id == 0) { station.toggleMode(); return true; }
                 if (id == 1) { station.cycleWorkDirection(); return true; }
-                if (id == 2) { station.recallAssignedDroid(serverLevel); return true; }
+                if (id == 2) {
+                    Entity droid = station.getAssignedDroid(serverLevel);
+                    if (droid instanceof MinerDroidEntity miner && miner.isTaskCompleted()) {
+                        miner.restartWork();
+                        player.displayClientMessage(net.minecraft.network.chat.Component.literal("§a[Miner Droid] §7Resumed work routine!"), true);
+                        return true;
+                    }
+                    station.recallAssignedDroid(serverLevel);
+                    return true;
+                }
             }
             // id == 3: Apply area from Controller item in hand to the droid
             if (id == 3) {

@@ -51,6 +51,8 @@ public class MinerDroidEntity extends AbstractDroidEntity {
             SynchedEntityData.defineId(MinerDroidEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Boolean> IS_ASCENDING =
             SynchedEntityData.defineId(MinerDroidEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> TASK_COMPLETED =
+            SynchedEntityData.defineId(MinerDroidEntity.class, EntityDataSerializers.BOOLEAN);
 
     // Miner-specific inventory: Tool Slot
     private final SimpleContainer pickaxeInventory = new SimpleContainer(1);
@@ -81,6 +83,7 @@ public class MinerDroidEntity extends AbstractDroidEntity {
         builder.define(INITIAL_DIRECTION, Direction.NORTH);
         builder.define(START_Y, 0);
         builder.define(IS_ASCENDING, false);
+        builder.define(TASK_COMPLETED, false);
     }
 
     // ─── Polymorphic Abstract Method Implementations ───────────────────────────
@@ -97,6 +100,7 @@ public class MinerDroidEntity extends AbstractDroidEntity {
 
     @Override
     public String getSpecificStatus() {
+        if (isTaskCompleted()) return "Completed";
         if (isAscending()) return "Vertical Thrusters";
         if (isWorking()) return "Mining";
         return "Standby";
@@ -114,7 +118,11 @@ public class MinerDroidEntity extends AbstractDroidEntity {
     }
 
     public void setMode(int mode) {
-        this.entityData.set(MODE, mode == MODE_QUARRY ? MODE_QUARRY : MODE_TUNNEL);
+        int targetMode = mode == MODE_QUARRY ? MODE_QUARRY : MODE_TUNNEL;
+        if (getMode() != targetMode) {
+            setTaskCompleted(false);
+        }
+        this.entityData.set(MODE, targetMode);
     }
 
     public void toggleMode() {
@@ -126,7 +134,16 @@ public class MinerDroidEntity extends AbstractDroidEntity {
     }
 
     public void setInitialDirection(Direction dir) {
+        if (getInitialDirection() != dir) {
+            setTaskCompleted(false);
+        }
         this.entityData.set(INITIAL_DIRECTION, dir);
+    }
+
+    @Override
+    public void setWorkArea(int minX, int minZ, int maxX, int maxZ) {
+        super.setWorkArea(minX, minZ, maxX, maxZ);
+        setTaskCompleted(false);
     }
 
     public int getStartY() {
@@ -155,6 +172,14 @@ public class MinerDroidEntity extends AbstractDroidEntity {
         this.entityData.set(IS_ASCENDING, ascending);
     }
 
+    public boolean isTaskCompleted() {
+        return this.entityData.get(TASK_COMPLETED);
+    }
+
+    public void setTaskCompleted(boolean completed) {
+        this.entityData.set(TASK_COMPLETED, completed);
+    }
+
     public void requestRecall() {
         this.recallRequested = true;
     }
@@ -164,6 +189,11 @@ public class MinerDroidEntity extends AbstractDroidEntity {
     }
 
     public void clearRecall() {
+        this.recallRequested = false;
+    }
+
+    public void restartWork() {
+        setTaskCompleted(false);
         this.recallRequested = false;
     }
 
