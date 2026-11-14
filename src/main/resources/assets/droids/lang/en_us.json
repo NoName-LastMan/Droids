@@ -20,6 +20,7 @@
   "gui.droids.mode.quarry": "⬇ Quarry",
   "message.droids.controller.linked": "Controller linked to Droid Station at [%d, %d, %d]!",
   "message.droids.controller.unlinked": "Controller is not linked! Right-click a Droid Station to link.",
+  "message.droids.controller.area_cleared": "Area corners cleared.",
   "message.droids.must_place_on_station": "Droids must be placed onto a Droid Station docking cradle!",
   "message.droids.station_occupied": "This Droid Station is already occupied by a Droid!",
   "message.droids.wrench.retrieved_farmer": "Dismantled Farmer Droid.",
@@ -30,7 +31,7 @@
   "tooltip.droids.wrench.usage_block": "• Shift-right-click Droid Station to dismantle.",
   "tooltip.droids.controller.linked_pos": "Linked Station: [%d, %d, %d]",
   "tooltip.droids.controller.not_linked": "§cNot Linked to any Station",
-  "tooltip.droids.controller.instructions": "Right-click Station/Droid to link. Right-click in air to view remote telemetry.",
+  "tooltip.droids.controller.instructions": "Right-click Station/Droid to link. Right-click blocks to mark work area. Open in air for telemetry.",
   "tooltip.droids.range_upgrade.desc": "Expands the maximum farm boundary or mining tunnel distance a Droid can manage.",
   "tooltip.droids.range_upgrade.tiers": "Max Limits: 0=5x5 (32m) | 1=9x9 (64m) | 2=16x16 (128m) | 3=21x21 (256m)"
 }

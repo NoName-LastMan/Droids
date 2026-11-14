@@ -4,6 +4,7 @@ import dev.droids.block.entity.DroidStationBlockEntity;
 import dev.droids.entity.FarmerDroidEntity;
 import dev.droids.entity.MinerDroidEntity;
 import dev.droids.init.ModMenuTypes;
+import dev.droids.item.DroidControllerItem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -22,28 +23,54 @@ public class DroidControllerMenu extends AbstractContainerMenu {
     private final BlockPos stationPos;
     private final ContainerData data;
 
+    // Pending area corners (from client extraData buffer)
+    private final boolean hasC1;
+    private final boolean hasC2;
+    private final int c1x, c1y, c1z;
+    private final int c2x, c2y, c2z;
+
+    // ── Client-side constructor (from buf) ──────────────────────────────────────
     public DroidControllerMenu(int containerId, Inventory playerInv, RegistryFriendlyByteBuf extraData) {
-        this(containerId, playerInv, extraData.readBlockPos(), new SimpleContainerData(14));
-    }
-
-    public DroidControllerMenu(int containerId, Inventory playerInv, BlockPos stationPos) {
-        this(containerId, playerInv, stationPos, createServerData(playerInv.player, stationPos));
-    }
-
-    public DroidControllerMenu(int containerId, Inventory playerInv, BlockPos stationPos, ContainerData data) {
         super(ModMenuTypes.DROID_CONTROLLER_MENU.get(), containerId);
-        this.stationPos = stationPos;
-        this.data = data;
+        this.stationPos = extraData.readBlockPos();
+        this.data = new SimpleContainerData(14);
         this.addDataSlots(data);
 
-        // Player Inventory (3 rows x 9 cols)
+        this.hasC1 = extraData.readBoolean();
+        if (this.hasC1) {
+            this.c1x = extraData.readInt();
+            this.c1y = extraData.readInt();
+            this.c1z = extraData.readInt();
+        } else { this.c1x = 0; this.c1y = 0; this.c1z = 0; }
+
+        this.hasC2 = extraData.readBoolean();
+        if (this.hasC2) {
+            this.c2x = extraData.readInt();
+            this.c2y = extraData.readInt();
+            this.c2z = extraData.readInt();
+        } else { this.c2x = 0; this.c2y = 0; this.c2z = 0; }
+
+        addPlayerSlots(playerInv);
+    }
+
+    // ── Server-side constructor ─────────────────────────────────────────────────
+    public DroidControllerMenu(int containerId, Inventory playerInv, BlockPos stationPos, ItemStack controllerStack) {
+        super(ModMenuTypes.DROID_CONTROLLER_MENU.get(), containerId);
+        this.stationPos = stationPos;
+        this.data = createServerData(playerInv.player, stationPos);
+        this.addDataSlots(data);
+        this.hasC1 = false; this.hasC2 = false;
+        this.c1x = 0; this.c1y = 0; this.c1z = 0;
+        this.c2x = 0; this.c2y = 0; this.c2z = 0;
+        addPlayerSlots(playerInv);
+    }
+
+    private void addPlayerSlots(Inventory playerInv) {
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
                 this.addSlot(new Slot(playerInv, col + row * 9 + 9, 8 + col * 18, 84 + row * 18));
             }
         }
-
-        // Player Hotbar (1 row x 9 cols)
         for (int col = 0; col < 9; col++) {
             this.addSlot(new Slot(playerInv, col, 8 + col * 18, 142));
         }
@@ -55,18 +82,16 @@ public class DroidControllerMenu extends AbstractContainerMenu {
             public int get(int index) {
                 if (!(player.level() instanceof ServerLevel serverLevel)) return 0;
                 if (!(serverLevel.getBlockEntity(stationPos) instanceof DroidStationBlockEntity station)) return 0;
-
                 Entity droid = station.getAssignedDroid(serverLevel);
-
                 return switch (index) {
-                    case 0 -> 1; // hasStation
+                    case 0 -> 1;
                     case 1 -> droid instanceof MinerDroidEntity ? 1 : (droid instanceof FarmerDroidEntity ? 2 : 0);
                     case 2 -> {
                         if (droid instanceof MinerDroidEntity miner) {
-                            if (!miner.hasFuel()) yield 3; // No fuel
-                            if (miner.isAscending()) yield 2; // Ascending
-                            if (miner.isWorking()) yield 1; // Mining
-                            yield 0; // Standby
+                            if (!miner.hasFuel()) yield 3;
+                            if (miner.isAscending()) yield 2;
+                            if (miner.isWorking()) yield 1;
+                            yield 0;
                         } else if (droid instanceof FarmerDroidEntity farmer) {
                             if (!farmer.hasFuel()) yield 3;
                             if (farmer.isWorking()) yield 1;
@@ -100,11 +125,11 @@ public class DroidControllerMenu extends AbstractContainerMenu {
                         }
                         yield 0;
                     }
-                    case 9 -> 20; // Max allowed depth limit
+                    case 9 -> 20;
                     case 10 -> droid != null ? (int) droid.getX() : stationPos.getX();
                     case 11 -> droid != null ? (int) droid.getY() : stationPos.getY();
                     case 12 -> droid != null ? (int) droid.getZ() : stationPos.getZ();
-                    case 13 -> station.getDataAccess().get(2); // Upgrades
+                    case 13 -> station.getDataAccess().get(2);
                     default -> 0;
                 };
             }
@@ -113,9 +138,7 @@ public class DroidControllerMenu extends AbstractContainerMenu {
             public void set(int index, int value) {}
 
             @Override
-            public int getCount() {
-                return 14;
-            }
+            public int getCount() { return 14; }
         };
     }
 
@@ -123,80 +146,44 @@ public class DroidControllerMenu extends AbstractContainerMenu {
     public boolean clickMenuButton(Player player, int id) {
         if (player.level() instanceof ServerLevel serverLevel) {
             if (serverLevel.getBlockEntity(this.stationPos) instanceof DroidStationBlockEntity station) {
-                if (id == 0) {
-                    station.toggleMode();
-                    return true;
-                } else if (id == 1) {
-                    station.cycleWorkDirection();
-                    return true;
-                } else if (id == 2) {
-                    station.recallAssignedDroid(serverLevel);
-                    return true;
-                }
+                if (id == 0) { station.toggleMode(); return true; }
+                if (id == 1) { station.cycleWorkDirection(); return true; }
+                if (id == 2) { station.recallAssignedDroid(serverLevel); return true; }
+            }
+            // id == 3: Apply area from Controller item in hand to the droid
+            if (id == 3) {
+                return DroidControllerItem.applyAreaToDroid(player, this.stationPos);
             }
         }
         return super.clickMenuButton(player, id);
     }
 
-    public BlockPos getStationPos() {
-        return this.stationPos;
-    }
+    // ── Getters (called from Screen) ─────────────────────────────────────────
+    public BlockPos getStationPos() { return this.stationPos; }
+    public boolean hasStation()     { return this.data.get(0) == 1; }
+    public int getDroidType()       { return this.data.get(1); }
+    public int getDroidStatus()     { return this.data.get(2); }
+    public int getFuelSeconds()     { return this.data.get(3); }
+    public int getDistance()        { return this.data.get(4); }
+    public int getMode()            { return this.data.get(5); }
+    public Direction getWorkDirection() { return Direction.from2DDataValue(this.data.get(6)); }
+    public int getPickaxeDurabilityPercent() { return this.data.get(7); }
+    public int getQuarryDepth()     { return this.data.get(8); }
+    public int getMaxDepth()        { return this.data.get(9); }
+    public int getDroidX()          { return this.data.get(10); }
+    public int getDroidY()          { return this.data.get(11); }
+    public int getDroidZ()          { return this.data.get(12); }
+    public int getUpgradeCount()    { return this.data.get(13); }
 
-    public boolean hasStation() {
-        return this.data.get(0) == 1;
-    }
-
-    public int getDroidType() {
-        return this.data.get(1); // 0=None, 1=Miner, 2=Farmer
-    }
-
-    public int getDroidStatus() {
-        return this.data.get(2); // 0=Standby, 1=Active, 2=Thrusters, 3=Unpowered
-    }
-
-    public int getFuelSeconds() {
-        return this.data.get(3);
-    }
-
-    public int getDistance() {
-        return this.data.get(4);
-    }
-
-    public int getMode() {
-        return this.data.get(5);
-    }
-
-    public Direction getWorkDirection() {
-        return Direction.from2DDataValue(this.data.get(6));
-    }
-
-    public int getPickaxeDurabilityPercent() {
-        return this.data.get(7);
-    }
-
-    public int getQuarryDepth() {
-        return this.data.get(8);
-    }
-
-    public int getMaxDepth() {
-        return this.data.get(9);
-    }
-
-    public int getDroidX() {
-        return this.data.get(10);
-    }
-
-    public int getDroidY() {
-        return this.data.get(11);
-    }
-
-    public int getDroidZ() {
-        return this.data.get(12);
-    }
-
-    public int getUpgradeCount() {
-        return this.data.get(13);
-    }
+    // Corner data (sent from server via extra buf, used by screen for preview)
+    public boolean hasCorner1() { return this.hasC1; }
+    public boolean hasCorner2() { return this.hasC2; }
+    public int getC1X() { return c1x; }
+    public int getC1Z() { return c1z; }
+    public int getC2X() { return c2x; }
+    public int getC2Z() { return c2z; }
+    public int getAreaWidth()  { return hasC1 && hasC2 ? Math.abs(c2x - c1x) + 1 : 0; }
+    public int getAreaLength() { return hasC1 && hasC2 ? Math.abs(c2z - c1z) + 1 : 0; }
 
     @Override
     public ItemStack quickMoveStack(Player player, int index) {
@@ -217,7 +204,6 @@ public class DroidControllerMenu extends AbstractContainerMenu {
     }
 
     @Override
-    public boolean stillValid(Player player) {
-        return true;
-    }
+    public boolean stillValid(Player player) { return true; }
 }
+
